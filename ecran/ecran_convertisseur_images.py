@@ -70,7 +70,7 @@ class EcranConvertisseurImages(Ecran):
         # --- Barre du haut ---
         top = ttk.Frame(self.fenetre)
         top.pack(fill="x", padx=pad, pady=(pad, 0))
-        print("fenetre =", self.fenetre, "master =", self.fenetre.master)
+        #print("fenetre =", self.fenetre, "master =", self.fenetre.master)
         # ✅ Comme ton app "devises" : on recrée l'image à chaque ouverture d'écran
         self.retour_image = self.graphique.creer_image("images/retour.png", width=30, height=30)
 
