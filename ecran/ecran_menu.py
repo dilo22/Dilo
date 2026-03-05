@@ -102,105 +102,233 @@ class EcranMenu(Ecran):
         self.gestionnaire_etat_ecran.afficher_etat()
 
     def initialiser_interface(self):
-        # Création de la fenêtre principale
-        self.fenetre_menu = self.graphique.creer_fenetre("Menu", 820, 600, "images/icone.ico")
+        self.fenetre_menu = self.graphique.creer_fenetre("Menu", 980, 640, "images/icone.ico")
+        self.fenetre_menu.configure(bg="#F6F7FB")
 
-
-        # Création de la barre de menu
+        # ---- Menu bar (tu peux garder tel quel) ----
         self.menu_bar = tk.Menu(self.fenetre_menu)
-        # Création du sous-menu "Fichier"
         menu_fichier = tk.Menu(self.menu_bar, tearoff=0)
         menu_fichier.add_command(label="Ouvrir", command=self.ouvrir_fichier)
         menu_fichier.add_command(label="Enregistrer", command=self.enregistrer_fichier)
-        menu_fichier.add_separator()  # Ajoute une ligne de séparation
+        menu_fichier.add_separator()
         menu_fichier.add_command(label="Quitter", command=self.fenetre_menu.quit)
-
-        # Ajout du sous-menu "Fichier" à la barre de menu
         self.menu_bar.add_cascade(label="Fichier", menu=menu_fichier)
 
-        # Création du sous-menu "Aide"
         menu_aide = tk.Menu(self.menu_bar, tearoff=0)
         menu_aide.add_command(label="À propos", command=self.a_propos)
-
-        # Ajout du sous-menu "Aide" à la barre de menu
         self.menu_bar.add_cascade(label="Aide", menu=menu_aide)
-
-        # Ajout de la barre de menu à la fenêtre principale
         self.fenetre_menu.config(menu=self.menu_bar)
 
+        # ---- Header moderne ----
+        header = tk.Frame(self.fenetre_menu, bg="#F6F7FB")
+        header.pack(fill="x", padx=18, pady=(14, 10))
 
+        self.retour_image = self.graphique.creer_image("images/retour.png", 26, 26)
+        btn_retour = tk.Button(
+            header,
+            image=self.retour_image,
+            command=self.retour_action,
+            bd=0,
+            bg="#F6F7FB",
+            activebackground="#F6F7FB",
+            cursor="hand2",
+        )
+        btn_retour.pack(side="left")
 
-        # On crée l'image retour
-        self.retour_image = self.graphique.creer_image("images/retour.png", 50, 50)
+        title_block = tk.Frame(header, bg="#F6F7FB")
+        title_block.pack(side="left", padx=12)
 
-        # On crée le bouton retour qui va contenir l'image retour
-        retour_button = self.graphique.creer_button(frame=self.fenetre_menu, fonction=lambda: self.retour_action(), bg="#ffffff",
-                                                    image=self.retour_image, width=50, height=50)
-        retour_button.pack(side='left', pady=10, padx=10)
+        tk.Label(
+            title_block,
+            text="Dilo — Menu",
+            font=("Segoe UI", 18, "bold"),
+            bg="#F6F7FB",
+            fg="#111827",
+        ).pack(anchor="w")
 
-        # Créer un canvas et une scrollbar
-        self.canvas = tk.Canvas(self.fenetre_menu, bg="#0b9eb5")
-        scrollbar = tk.Scrollbar(self.fenetre_menu, orient="vertical", command=self.canvas.yview)
+        tk.Label(
+            title_block,
+            text="Choisis une application à lancer",
+            font=("Segoe UI", 10),
+            bg="#F6F7FB",
+            fg="#6B7280",
+        ).pack(anchor="w")
 
-        # Créer un frame à l'intérieur du canvas pour contenir les boutons
-        self.frame_projets = tk.Frame(self.canvas, bg="#0b9eb5")
+        # ---- Barre de recherche ----
+        search_wrap = tk.Frame(self.fenetre_menu, bg="#F6F7FB")
+        search_wrap.pack(fill="x", padx=18, pady=(0, 12))
 
-        # Ajouter le frame au canvas
-        self.canvas.create_window((0, 0), window=self.frame_projets, anchor="nw")
-        self.canvas.update_idletasks()  # Mettre à jour les tâches d'attente pour avoir la bonne taille
+        self.search_var = tk.StringVar()
+        self.search_entry = tk.Entry(
+            search_wrap,
+            textvariable=self.search_var,
+            font=("Segoe UI", 11),
+            relief="flat",
+            bg="#FFFFFF",
+            fg="#111827",
+        )
+        self.search_entry.pack(fill="x", ipady=10)
+        self.search_entry.insert(0, "Rechercher une app…")
+        self.search_entry.bind("<FocusIn>", self._search_focus_in)
+        self.search_entry.bind("<FocusOut>", self._search_focus_out)
 
-        # Configuration de la scrollbar
-        scrollbar.config(command=self.canvas.yview)
-        self.canvas.config(yscrollcommand=scrollbar.set)
+        # ---- Zone scrollable (canvas + frame) ----
+        content = tk.Frame(self.fenetre_menu, bg="#F6F7FB")
+        content.pack(fill="both", expand=True, padx=18, pady=(0, 14))
 
-        # Disposer le canvas et la scrollbar
-        self.canvas.pack(side="left", fill="both", expand=True)
+        self.canvas = tk.Canvas(content, bg="#F6F7FB", highlightthickness=0)
+        scrollbar = tk.Scrollbar(content, orient="vertical", command=self.canvas.yview)
         scrollbar.pack(side="right", fill="y")
-    
-        # Ajouter un event pour mettre à jour la taille du canvas lorsque le frame change de taille
-        self.frame_projets.bind("<Configure>", lambda e: self.canvas.config(scrollregion=self.canvas.bbox("all")))
+        self.canvas.pack(side="left", fill="both", expand=True)
+        self.canvas.configure(yscrollcommand=scrollbar.set)
 
-        # Gérer le défilement avec la molette de la souris
+        self.frame_projets = tk.Frame(self.canvas, bg="#F6F7FB")
+        self.canvas_window = self.canvas.create_window((0, 0), window=self.frame_projets, anchor="nw")
+
+        self.frame_projets.bind("<Configure>", lambda e: self.canvas.configure(scrollregion=self.canvas.bbox("all")))
+        self.canvas.bind("<Configure>", self._on_canvas_resize)
         self.canvas.bind_all("<MouseWheel>", self._on_mousewheel)
 
-        # Création des boutons projets et stockage des images
-        btn_calculatrice = self.creer_carre(self.frame_projets, "images/calculatrice.png", "Calculatrice", self.ouvrir_calculatrice)
-        btn_convertisseur = self.creer_carre(self.frame_projets, "images/convertisseur.png", "Convertisseur", self.ouvrir_convertisseur)
-        btn_jeu = self.creer_carre(self.frame_projets, "images/jeu.png", "Jeu de serpent", self.ouvrir_jeu)
-        btn_caisse = self.creer_carre(self.frame_projets, "images/caisse.png", "Caisse rapide", self.ouvrir_caisse)
-        btn_liste_couleurs = self.creer_carre(self.frame_projets, "images/listecouleurs.png", "Liste Couleurs", self.ouvrir_liste_couleurs)
-        btn_matrice_couleurs = self.creer_carre(self.frame_projets, "images/matricecouleurs.png", "Matrice Couleurs", self.ouvrir_matrice_couleurs)
-        btn_selecteur = self.creer_carre(self.frame_projets, "images/scales.png", "Tirettes", self.ouvrir_scales)
-        btn_horloge = self.creer_carre(self.frame_projets, "images/horloge.png", "Horloge", self.ouvrir_horloge)
-        btn_mdp = self.creer_carre(self.frame_projets, "images/mdp.png", "Mot de passe", self.ouvrir_mdp)
-        btn_qrcode = self.creer_carre(self.frame_projets, "images/qrcode.png", "QR Code", self.ouvrir_qrcode)
-        btn_youtube = self.creer_carre(self.frame_projets, "images/youtube.png", "Youtube", self.ouvrir_youtube)
-        btn_dj = self.creer_carre(self.frame_projets, "images/dj.png", "Dj", self.ouvrir_dj)
-        btn_dessin = self.creer_carre(self.frame_projets, "images/dessin.png", "Dessin", self.ouvrir_dessin)
-        btn_audio_text = self.creer_carre(self.frame_projets, "images/audio_text.png", "Audio to Text", self.ouvrir_audio_text)
-        btn_convertisseur_images = self.creer_carre(self.frame_projets, "images/webp.png", "Convertisseur Webp", self.ouvrir_convertisseur_images)
-        btn_meteo = self.creer_carre(self.frame_projets, "images/meteo.png", "Météo", self.ouvrir_meteo)
+        # ---- Data apps ----
+        self.apps = [
+            ("Calculatrice", "images/calculatrice.png", self.ouvrir_calculatrice),
+            ("Convertisseur", "images/convertisseur.png", self.ouvrir_convertisseur),
+            ("Jeu de serpent", "images/jeu.png", self.ouvrir_jeu),
+            ("Caisse rapide", "images/caisse.png", self.ouvrir_caisse),
+            ("Liste Couleurs", "images/listecouleurs.png", self.ouvrir_liste_couleurs),
+            ("Matrice Couleurs", "images/matricecouleurs.png", self.ouvrir_matrice_couleurs),
+            ("Tirettes (RGB)", "images/scales.png", self.ouvrir_scales),
+            ("Horloge", "images/horloge.png", self.ouvrir_horloge),
+            ("Mot de passe", "images/mdp.png", self.ouvrir_mdp),
+            ("QR Code", "images/qrcode.png", self.ouvrir_qrcode),
+            ("YouTube", "images/youtube.png", self.ouvrir_youtube),
+            ("DJ", "images/dj.png", self.ouvrir_dj),
+            ("Dessin", "images/dessin.png", self.ouvrir_dessin),
+            ("Audio to Text", "images/audio_text.png", self.ouvrir_audio_text),
+            ("Convertisseur WebP", "images/webp.png", self.ouvrir_convertisseur_images),
+            ("Météo", "images/meteo.png", self.ouvrir_meteo),
+        ]
 
-        # Disposer les boutons dans le frame
-        btn_calculatrice.grid(row=0, column=0, padx=10, pady=20)
-        btn_convertisseur.grid(row=0, column=1, padx=10, pady=20)
-        btn_jeu.grid(row=0, column=2, padx=10, pady=20)
-        btn_caisse.grid(row=0, column=3, padx=10, pady=20)
+        # Précharger les images et créer les cartes
+        self._cards = []
+        self._images = []
+        for name, icon_path, cmd in self.apps:
+            img = self.graphique.creer_image(icon_path, 44, 44)
+            self._images.append(img)
+            card = self.creer_carte_modern(self.frame_projets, name, img, cmd)
+            self._cards.append((name, card))
 
-        btn_liste_couleurs.grid(row=1, column=0, padx=10, pady=20)
-        btn_matrice_couleurs.grid(row=1, column=1, padx=10, pady=20)
-        btn_selecteur.grid(row=1, column=2, padx=10, pady=20)
-        btn_horloge.grid(row=1, column=3, padx=10, pady=20)
+        # Layout initial + filtre en live
+        self._layout_cards()
+        self.search_var.trace_add("write", lambda *_: self._filter_cards())
+    def creer_carte_modern(self, parent, titre, image, command):
+        card = tk.Frame(parent, bg="#FFFFFF", bd=0, highlightthickness=1, highlightbackground="#E5E7EB")
+        card.configure(cursor="hand2")
 
-        btn_mdp.grid(row=2, column=0, padx=10, pady=20)
-        btn_qrcode.grid(row=2, column=1, padx=10, pady=20)
-        btn_youtube.grid(row=2, column=2, padx=10, pady=20)
-        btn_dj.grid(row=2, column=3, padx=10, pady=20)
+        # coins arrondis -> Tkinter ne gère pas nativement, mais ce style reste moderne sans.
+        inner = tk.Frame(card, bg="#FFFFFF")
+        inner.pack(fill="both", expand=True, padx=14, pady=14)
 
-        btn_dessin.grid(row=3, column=0, padx=10, pady=20)
-        btn_audio_text.grid(row=3, column=1, padx=10, pady=20)
-        btn_convertisseur_images.grid(row=3, column=2, padx=10, pady=20)
-        btn_meteo.grid(row=3, column=3, padx=10, pady=20)
+        icon_wrap = tk.Frame(inner, bg="#F3F4F6")
+        icon_wrap.pack(anchor="w")
+        tk.Label(icon_wrap, image=image, bg="#F3F4F6").pack(padx=10, pady=10)
+
+        tk.Label(
+            inner,
+            text=titre,
+            font=("Segoe UI", 11, "bold"),
+            bg="#FFFFFF",
+            fg="#111827",
+        ).pack(anchor="w", pady=(10, 0))
+
+        tk.Label(
+            inner,
+            text="Ouvrir",
+            font=("Segoe UI", 9),
+            bg="#FFFFFF",
+            fg="#6B7280",
+        ).pack(anchor="w", pady=(4, 0))
+
+        # Clic partout
+        def _click(_):
+            command()
+
+        card.bind("<Button-1>", _click)
+        for w in (inner, icon_wrap):
+            w.bind("<Button-1>", _click)
+
+        # Hover
+        def _enter(_):
+            card.config(highlightbackground="#CBD5E1")
+            card.config(bg="#FFFFFF")
+        def _leave(_):
+            card.config(highlightbackground="#E5E7EB")
+
+        card.bind("<Enter>", _enter)
+        card.bind("<Leave>", _leave)
+
+        return card
+
+    def _search_focus_in(self, event):
+        if self.search_entry.get().strip() == "Rechercher une app…":
+            self.search_entry.delete(0, tk.END)
+
+
+    def _search_focus_out(self, event):
+        if not self.search_entry.get().strip():
+            self.search_entry.insert(0, "Rechercher une app…")
+
+
+    def _on_canvas_resize(self, event):
+        # Ajuster la largeur du frame interne au canvas
+        self.canvas.itemconfig(self.canvas_window, width=event.width)
+        self._layout_cards()
+
+
+    def _layout_cards(self):
+        # Layout responsive: nombre de colonnes dépend de la largeur
+        w = self.canvas.winfo_width()
+        if w <= 520:
+            cols = 2
+        elif w <= 820:
+            cols = 3
+        else:
+            cols = 4
+
+        for widget in self.frame_projets.grid_slaves():
+            widget.grid_forget()
+
+        visible_cards = [card for (_, card) in self._cards if card.winfo_viewable()]
+
+        # Astuce: winfo_viewable peut être faux avant update, donc on calcule sur "mapped"
+        visible_cards = [card for (_, card) in self._cards if str(card.winfo_ismapped()) == "1" or True]
+
+        # On place uniquement celles qui ne sont pas "cachées"
+        row = col = 0
+        for name, card in self._cards:
+            if getattr(card, "_hidden", False):
+                continue
+            card.grid(row=row, column=col, padx=10, pady=10, sticky="nsew")
+            col += 1
+            if col >= cols:
+                col = 0
+                row += 1
+
+        for c in range(cols):
+            self.frame_projets.grid_columnconfigure(c, weight=1)
+
+
+    def _filter_cards(self):
+        q = self.search_var.get().strip().lower()
+        if q == "rechercher une app…":
+            q = ""
+
+        for name, card in self._cards:
+            show = (q in name.lower()) if q else True
+            card._hidden = not show
+
+        self._layout_cards()
+    
 
     def ouvrir_fichier(self):
         messagebox.showinfo("Ouvrir", "Fonction d'ouverture de fichier")
